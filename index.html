@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pole Cavity Area Estimator (EN)</title>
+<style>
+  :root{ --bg:#0b0c10; --fg:#e8e8e8; --muted:#9aa0a6; --blue:#60a5fa; --orange:#f97316; }
+  html,body{ height:100%; margin:0; background:var(--bg); color:var(--fg); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; }
+  .wrap{ display:grid; grid-template-columns:360px 1fr; gap:16px; height:100vh; }
+  .panel{ padding:16px; overflow:auto; border-right:1px solid #23262d; }
+  h1{ font-size:1.2rem; margin:0 0 12px; }
+  .row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  input[type=file]{ width:100%; }
+  input[type=number]{ background:#111418; color:var(--fg); border:1px solid #2a2f38; border-radius:8px; padding:8px; width:160px; }
+  button{ background:#161a22; color:var(--fg); border:1px solid #2a2f38; padding:8px 12px; border-radius:10px; cursor:pointer; transition:transform .05s ease, box-shadow .2s ease, background .2s ease; }
+  button:active{ transform:translateY(1px); }
+  button.primary{ border-color:#22482f; background:#0e1b12; color:#d1fadf; }
+  button.warn{ border-color:#5b4400; background:#241a00; color:#ffe8b3; }
+  button.active{ outline:2px solid #66ffb2; box-shadow:0 0 0 4px rgba(102,255,178,.15) inset; }
+  .legend{ display:flex; gap:10px; align-items:center; font-size:.9rem; color:var(--muted); }
+  .swatch{ width:16px; height:16px; border-radius:50%; display:inline-block; }
+  .swatch.pole{ background:var(--blue); }
+  .swatch.cavity{ background:var(--orange); }
+  .metrics{ background:#0f1318; border:1px dashed #2a2f38; border-radius:12px; padding:12px; font-size:.95rem; white-space:pre-wrap; }
+  main{ position:relative; }
+  canvas{ width:100%; height:100%; display:block; background:#0e1116; }
+  .hint{ color:var(--muted); font-size:.9rem; }
+  .status{ margin-top:8px; color:#d1fadf; background:#0e1b12; border:1px solid #22482f; border-radius:10px; padding:8px 10px; min-height:20px; }
+  .kbd{background:#12161d;border:1px solid #2a2f38;border-bottom-width:3px;border-radius:6px;padding:2px 6px;margin:0 2px;font-family:ui-monospace,Menlo,Consolas,monospace}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <aside class="panel">
+    <h1>Pole Cavity Area Estimator</h1>
+    <div class="legend" title="Colors: Blue = pole circle (center+radius), Orange = cavity polygon">
+      <span class="swatch pole"></span> Pole circle
+      <span class="swatch cavity"></span> Cavity region
+    </div>
+
+    <section>
+      <strong>1) Load Image</strong>
+      <input id="file" type="file" accept="image/*" />
+      <div class="row" style="margin-top:8px">
+        <button id="fit">Fit to window</button>
+        <button id="clearAll" class="warn">Clear</button>
+      </div>
+      <div id="status" class="status" aria-live="polite">Waiting for image…</div>
+    </section>
+
+    <section>
+      <strong>2) Annotate</strong>
+      <div class="row" style="margin-top:6px">
+        <button id="modeCenter" class="primary">Set pole center</button>
+        <button id="modeRadius">Set radius (click rim)</button>
+        <button id="resetPole" class="warn">Reset circle</button>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button id="modeCav" class="primary">Draw cavity polygon</button>
+        <button id="closeCav">Close cavity</button>
+        <button id="undoCav" class="warn">Undo point</button>
+      </div>
+      <p class="hint">Tip: Click once for center, then once on the rim for radius. For cavity, click to add points, <span class="kbd">Esc</span> to cancel, double‑click to close.</p>
+    </section>
+
+    <section>
+      <strong>3) Enter real circumference</strong>
+      <div class="row" style="margin-top:6px">
+        <input id="circum" type="number" step="0.01" placeholder="Pole circumference (cm)" />
+        <button id="calc" class="primary">Compute area</button>
+      </div>
+      <p class="hint">Scale: cm/px = circumference / (2πR<sub>px</sub>).</p>
+    </section>
+
+    <section>
+      <div class="metrics" id="metrics">Not computed.</div>
+      <div class="row" style="margin-top:8px">
+        <button id="exportPNG">Export annotated PNG</button>
+      </div>
+    </section>
+  </aside>
+
+  <main>
+    <canvas id="cv"></canvas>
+  </main>
+</div>
+
+<script>
+(() => {
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  let img = new Image();
+  let imgLoaded = false;
+  let scale = 1, offsetX = 0, offsetY = 0;
+  const status = document.getElementById('status');
+
+  const state = {
+    mode: 'idle', // 'center' | 'radius' | 'cav'
+    pole: { center: null, radiusPx: null },
+    cav: [],
+    pulses: [] // click feedback {x,y,t}
+  };
+
+  // ---------- Sizing & DPR ----------
+  function setCanvasSize(){
+    const rect = cv.parentElement.getBoundingClientRect();
+    cv.style.width = rect.width + 'px';
+    cv.style.height = rect.height + 'px';
+    cv.width = Math.max(640, Math.floor(rect.width * dpr));
+    cv.height = Math.max(480, Math.floor(rect.height * dpr));
+    ctx.setTransform(dpr,0,0,dpr,0,0); // work in CSS pixels
+    draw();
+  }
+  const ro = new ResizeObserver(setCanvasSize); ro.observe(cv.parentElement);
+  window.addEventListener('resize', setCanvasSize);
+
+  function fitImage(){
+    if(!imgLoaded) return;
+    const W = cv.getBoundingClientRect().width;
+    const H = cv.getBoundingClientRect().height;
+    const r = Math.min(W / img.naturalWidth, H / img.naturalHeight);
+    scale = r; offsetX = (W - img.naturalWidth * r)/2; offsetY = (H - img.naturalHeight * r)/2; draw();
+  }
+
+  const toCanvas = (p) => ({ x: offsetX + p.x * scale, y: offsetY + p.y * scale });
+  const toImage = (p) => ({ x: (p.x - offsetX) / scale, y: (p.y - offsetY) / scale });
+
+  // ---------- UI helpers ----------
+  const btnCenter = document.getElementById('modeCenter');
+  const btnRadius = document.getElementById('modeRadius');
+  const btnCav = document.getElementById('modeCav');
+  function setMode(m){ state.mode = m; [btnCenter,btnRadius,btnCav].forEach(b=>b.classList.remove('active')); if(m==='center') btnCenter.classList.add('active'); if(m==='radius') btnRadius.classList.add('active'); if(m==='cav') btnCav.classList.add('active'); }
+  function setStatus(msg){ status.textContent = msg; }
+
+  // ---------- Draw ----------
+  function draw(){
+    ctx.clearRect(0,0,cv.width,cv.height);
+    if(imgLoaded) ctx.drawImage(img, offsetX, offsetY, img.naturalWidth*scale, img.naturalHeight*scale);
+
+    // pole circle
+    if(state.pole.center){
+      const c = toCanvas(state.pole.center);
+      ctx.fillStyle = '#60a5fa'; ctx.beginPath(); ctx.arc(c.x,c.y,4,0,Math.PI*2); ctx.fill();
+      if(state.pole.radiusPx){ ctx.beginPath(); ctx.arc(c.x,c.y,state.pole.radiusPx*scale,0,Math.PI*2); ctx.lineWidth=2; ctx.strokeStyle='#60a5fa'; ctx.stroke(); }
+    }
+
+    // cavity polygon
+    if(state.cav.length){
+      ctx.beginPath(); const p0 = toCanvas(state.cav[0]); ctx.moveTo(p0.x,p0.y);
+      for(let i=1;i<state.cav.length;i++){ const p = toCanvas(state.cav[i]); ctx.lineTo(p.x,p.y); }
+      if(state.mode!=='cav' && state.cav.length>2) ctx.closePath();
+      ctx.lineWidth=2; ctx.strokeStyle='#f97316'; ctx.stroke();
+      for(const p of state.cav){ const c = toCanvas(p); ctx.beginPath(); ctx.arc(c.x,c.y,3.5,0,Math.PI*2); ctx.fillStyle='#f97316'; ctx.fill(); }
+    }
+
+    // click pulses feedback
+    const now = performance.now();
+    state.pulses = state.pulses.filter(pl => now - pl.t < 600);
+    for(const pl of state.pulses){
+      const a = 1 - (now - pl.t)/600; const r = 6 + (now - pl.t)/12;
+      ctx.globalAlpha = Math.max(0,a); ctx.beginPath(); ctx.arc(pl.x, pl.y, r, 0, Math.PI*2); ctx.strokeStyle = '#66ffb2'; ctx.lineWidth = 2; ctx.stroke(); ctx.globalAlpha = 1;
+    }
+    if(state.pulses.length) requestAnimationFrame(draw);
+  }
+
+  // ---------- Load image (robust) ----------
+  async function loadFile(file){
+    imgLoaded = false; setStatus('Loading image…');
+    state.pole = { center:null, radiusPx:null }; state.cav = []; draw();
+    try{
+      const bmp = await createImageBitmap(file);
+      const off = document.createElement('canvas'); off.width=bmp.width; off.height=bmp.height; off.getContext('2d').drawImage(bmp,0,0);
+      img = new Image(); await new Promise(res=>{ img.onload=res; img.src = off.toDataURL('image/png'); });
+    }catch(e){
+      const fr = new FileReader(); const dataURL = await new Promise((res,rej)=>{ fr.onerror=rej; fr.onload=()=>res(fr.result); fr.readAsDataURL(file); });
+      img = new Image(); await new Promise(res=>{ img.onload=res; img.src = dataURL; });
+    }
+    imgLoaded = true; fitImage(); setStatus('Image loaded ✓');
+  }
+
+  document.getElementById('file').addEventListener('change', e=>{ const f=e.target.files?.[0]; if(!f) return; loadFile(f); });
+  document.getElementById('fit').addEventListener('click', fitImage);
+  document.getElementById('clearAll').addEventListener('click', ()=>{ state.pole={center:null,radiusPx:null}; state.cav=[]; setMode('idle'); setStatus('Cleared.'); document.getElementById('metrics').textContent='Not computed.'; draw(); });
+
+  // ---------- Interactions ----------
+  let mouse=null; cv.addEventListener('mousemove', e=>{ const r=cv.getBoundingClientRect(); mouse={x:e.clientX-r.left,y:e.clientY-r.top}; });
+  cv.addEventListener('click', e=>{
+    const r = cv.getBoundingClientRect(); const pCanvas = { x:e.clientX-r.left, y:e.clientY-r.top }; const pImg = toImage(pCanvas);
+    state.pulses.push({ x:pCanvas.x, y:pCanvas.y, t:performance.now() });
+    if(state.mode==='center'){ state.pole.center = pImg; setStatus('Center set ✓. Now click rim to set radius.'); }
+    else if(state.mode==='radius' && state.pole.center){ const c = toCanvas(state.pole.center); state.pole.radiusPx = Math.hypot(pCanvas.x - c.x, pCanvas.y - c.y) / scale; setStatus('Radius set ✓.'); }
+    else if(state.mode==='cav'){ state.cav.push(pImg); setStatus(`Cavity points: ${state.cav.length}`); }
+    draw();
+  });
+  cv.addEventListener('dblclick', ()=>{ if(state.mode==='cav'){ setMode('idle'); setStatus('Cavity closed.'); draw(); } });
+  window.addEventListener('keydown', (e)=>{ if(e.key==='Escape'){ setMode('idle'); setStatus('Drawing cancelled.'); draw(); } });
+
+  document.getElementById('modeCenter').addEventListener('click', ()=>{ setMode('center'); setStatus('Click the pole center.'); });
+  document.getElementById('modeRadius').addEventListener('click', ()=>{ setMode('radius'); setStatus('Click a point on the rim.'); });
+  document.getElementById('resetPole').addEventListener('click', ()=>{ state.pole={center:null,radiusPx:null}; setStatus('Pole circle reset.'); draw(); });
+  document.getElementById('modeCav').addEventListener('click', ()=>{ setMode('cav'); setStatus('Click to add cavity points. Double‑click to close.'); });
+  document.getElementById('closeCav').addEventListener('click', ()=>{ setMode('idle'); setStatus('Cavity closed.'); draw(); });
+  document.getElementById('undoCav').addEventListener('click', ()=>{ state.cav.pop(); setStatus(`Cavity points: ${state.cav.length}`); draw(); });
+
+  // ---------- Compute ----------
+  function polyArea(px){ let a=0; for(let i=0,j=px.length-1;i<px.length;j=i++){ const p1=px[i],p2=px[j]; a+=(p2.x+p1.x)*(p2.y-p1.y);} return Math.abs(a)/2; }
+  function fmt(n){ return Number(n).toLocaleString(undefined,{ maximumFractionDigits:3 }); }
+  document.getElementById('calc').addEventListener('click', ()=>{
+    if(!imgLoaded) return alert('Load an image first');
+    if(!state.pole.center || !state.pole.radiusPx) return alert('Set pole center and radius');
+    if(!(state.cav.length>=3)) return alert('Draw the cavity polygon (≥3 points)');
+    const circum = parseFloat(document.getElementById('circum').value); if(!circum||circum<=0) return alert('Enter valid circumference (cm)');
+
+    const Rpx = state.pole.radiusPx; const perPx = 2*Math.PI*Rpx; const cmPerPx = circum / perPx;
+    const areaCavPx2 = polyArea(state.cav); const areaPolePx2 = Math.PI * Rpx * Rpx;
+    const areaCav = areaCavPx2 * cmPerPx * cmPerPx; const areaPole = areaPolePx2 * cmPerPx * cmPerPx; const ratio = areaCav/areaPole*100;
+
+    document.getElementById('metrics').textContent = `Pixels\n- R: ${fmt(Rpx)} px\n- Perimeter: ${fmt(perPx)} px\n- Cavity area: ${fmt(areaCavPx2)} px²\n\nScale\n- Circumference: ${fmt(circum)} cm\n- Scale: ${fmt(cmPerPx)} cm/px\n\nResults\n- Cavity area: ${fmt(areaCav)} cm²\n- Section area: ${fmt(areaPole)} cm²\n- Ratio: ${fmt(ratio)} %`;
+    setStatus('Computed ✓');
+  });
+
+  // ---------- Export ----------
+  document.getElementById('exportPNG').addEventListener('click', ()=>{
+    if(!imgLoaded) return; const out = document.createElement('canvas'); out.width = img.naturalWidth; out.height = img.naturalHeight; const c = out.getContext('2d'); c.drawImage(img,0,0);
+    if(state.pole.center && state.pole.radiusPx){ const cc = state.pole.center; const rr = state.pole.radiusPx; c.beginPath(); c.arc(cc.x,cc.y,rr,0,Math.PI*2); c.lineWidth=6; c.strokeStyle= '#60a5fa'; c.stroke(); }
+    if(state.cav.length>=3){ c.beginPath(); c.moveTo(state.cav[0].x,state.cav[0].y); for(let i=1;i<state.cav.length;i++) c.lineTo(state.cav[i].x,state.cav[i].y); c.closePath(); c.lineWidth=6; c.strokeStyle='#f97316'; c.stroke(); c.globalAlpha=.25; c.fillStyle='#f97316'; c.fill(); c.globalAlpha=1; }
+    const url = out.toDataURL('image/png'); const a=document.createElement('a'); a.href=url; a.download='pole_cavity_annotated.png'; a.click();
+  });
+
+  setCanvasSize();
+})();
+</script>
+</body>
+</html>

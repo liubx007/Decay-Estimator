@@ -3,82 +3,87 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Pole Cavity Area Estimator (EN)</title>
+<title>Pole Cavity Area Estimator – Compare v6.1</title>
 <style>
-  :root{ --bg:#0b0c10; --fg:#e8e8e8; --muted:#9aa0a6; --blue:#60a5fa; --orange:#f97316; }
+  :root{ --bg:#0b0c10; --fg:#e8e8e8; --muted:#9aa0a6; --blue:#60a5fa; --orange:#f97316; --green:#22c55e; --over:#f5e663; }
   html,body{ height:100%; margin:0; background:var(--bg); color:var(--fg); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; }
-  .wrap{ display:grid; grid-template-columns:360px 1fr; gap:16px; height:100vh; }
+  .wrap{ display:grid; grid-template-columns:380px 1fr; gap:16px; height:100vh; }
   .panel{ padding:16px; overflow:auto; border-right:1px solid #23262d; }
-  h1{ font-size:1.2rem; margin:0 0 12px; }
+  h1{ font-size:1.15rem; margin:0 0 12px; }
   .row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
   input[type=file]{ width:100%; }
-  input[type=number]{ background:#111418; color:var(--fg); border:1px solid #2a2f38; border-radius:8px; padding:8px; width:160px; }
-  button{ background:#161a22; color:var(--fg); border:1px solid #2a2f38; padding:8px 12px; border-radius:10px; cursor:pointer; transition:transform .05s ease, box-shadow .2s ease, background .2s ease; }
-  button:active{ transform:translateY(1px); }
+  input[type=number], input[type=range]{ background:#111418; color:var(--fg); border:1px solid #2a2f38; border-radius:8px; padding:4px; }
+  input[type=number]{ padding:8px; width:160px; }
+  button{ background:#161a22; color:var(--fg); border:1px solid #2a2f38; padding:8px 12px; border-radius:10px; cursor:pointer; }
   button.primary{ border-color:#22482f; background:#0e1b12; color:#d1fadf; }
   button.warn{ border-color:#5b4400; background:#241a00; color:#ffe8b3; }
-  button.active{ outline:2px solid #66ffb2; box-shadow:0 0 0 4px rgba(102,255,178,.15) inset; }
   .legend{ display:flex; gap:10px; align-items:center; font-size:.9rem; color:var(--muted); }
-  .swatch{ width:16px; height:16px; border-radius:50%; display:inline-block; }
-  .swatch.pole{ background:var(--blue); }
-  .swatch.cavity{ background:var(--orange); }
+  .sw{ width:14px; height:14px; border-radius:50%; display:inline-block; }
+  .sw.blue{ background:var(--blue);} .sw.orange{ background:var(--orange);} .sw.green{ background:var(--green);} .sw.over{ background:var(--over);} 
   .metrics{ background:#0f1318; border:1px dashed #2a2f38; border-radius:12px; padding:12px; font-size:.95rem; white-space:pre-wrap; }
   main{ position:relative; }
   canvas{ width:100%; height:100%; display:block; background:#0e1116; }
+  .sec{ margin:14px 0; }
   .hint{ color:var(--muted); font-size:.9rem; }
-  .status{ margin-top:8px; color:#d1fadf; background:#0e1b12; border:1px solid #22482f; border-radius:10px; padding:8px 10px; min-height:20px; }
-  .kbd{background:#12161d;border:1px solid #2a2f38;border-bottom-width:3px;border-radius:6px;padding:2px 6px;margin:0 2px;font-family:ui-monospace,Menlo,Consolas,monospace}
+  label{ font-size:.85rem; color:var(--muted); }
 </style>
 </head>
 <body>
 <div class="wrap">
   <aside class="panel">
-    <h1>Pole Cavity Area Estimator</h1>
-    <div class="legend" title="Colors: Blue = pole circle (center+radius), Orange = cavity polygon">
-      <span class="swatch pole"></span> Pole circle
-      <span class="swatch cavity"></span> Cavity region
-    </div>
+    <h1>Pole Cavity Area Estimator – Compare v6.1</h1>
+    <div class="legend"><span class="sw blue"></span> Pole circle <span class="sw orange"></span> Photo cavity <span class="sw green"></span> MATLAB cavity <span class="sw over"></span> Overlap</div>
 
-    <section>
-      <strong>1) Load Image</strong>
-      <input id="file" type="file" accept="image/*" />
+    <div class="sec">
+      <strong>1) Load images</strong>
+      <div>Photo: <input id="filePhoto" type="file" accept="image/*" /></div>
+      <div style="margin-top:6px">MATLAB output: <input id="filePred" type="file" accept="image/*" /></div>
       <div class="row" style="margin-top:8px">
         <button id="fit">Fit to window</button>
-        <button id="clearAll" class="warn">Clear</button>
+        <button id="clear" class="warn">Clear</button>
       </div>
-      <div id="status" class="status" aria-live="polite">Waiting for image…</div>
-    </section>
+    </div>
 
-    <section>
-      <strong>2) Annotate</strong>
+    <div class="sec">
+      <strong>2) MATLAB overlay alignment</strong>
+      <div class="row"><label>Opacity</label><input id="opacity" type="range" min="0" max="1" step="0.01" value="0.5"></div>
+      <div class="row"><label>Scale</label><input id="scaleM" type="range" min="0.1" max="3" step="0.01" value="1"></div>
+      <div class="row"><label>Rotate</label><input id="rotateM" type="range" min="-180" max="180" step="1" value="0"></div>
+      <div class="row"><label>Shift X</label><input id="shiftX" type="range" min="-500" max="500" step="1" value="0"></div>
+      <div class="row"><label>Shift Y</label><input id="shiftY" type="range" min="-500" max="500" step="1" value="0"></div>
+      <p class="hint">Align the MATLAB image to the photo first.</p>
+    </div>
+
+    <div class="sec">
+      <strong>3) Annotate cavities</strong>
       <div class="row" style="margin-top:6px">
         <button id="modeCenter" class="primary">Set pole center</button>
-        <button id="modeRadius">Set radius (click rim)</button>
-        <button id="resetPole" class="warn">Reset circle</button>
+        <button id="modeRadius">Set radius</button>
       </div>
       <div class="row" style="margin-top:6px">
-        <button id="modeCav" class="primary">Draw cavity polygon</button>
-        <button id="closeCav">Close cavity</button>
-        <button id="undoCav" class="warn">Undo point</button>
+        <button id="modeCav" class="primary">Draw cavity (photo)</button>
+        <button id="closeCav">Close</button>
+        <button id="undoCav" class="warn">Undo</button>
       </div>
-      <p class="hint">Tip: Click once for center, then once on the rim for radius. For cavity, click to add points, <span class="kbd">Esc</span> to cancel, double‑click to close.</p>
-    </section>
-
-    <section>
-      <strong>3) Enter real circumference</strong>
       <div class="row" style="margin-top:6px">
-        <input id="circum" type="number" step="0.01" placeholder="Pole circumference (cm)" />
-        <button id="calc" class="primary">Compute area</button>
+        <button id="modeCavM" class="primary">Draw cavity (MATLAB)</button>
+        <button id="closeCavM">Close</button>
+        <button id="undoCavM" class="warn">Undo</button>
       </div>
-      <p class="hint">Scale: cm/px = circumference / (2πR<sub>px</sub>).</p>
-    </section>
+      <p class="hint">Click to add points, double‑click to close.</p>
+    </div>
 
-    <section>
+    <div class="sec">
+      <strong>4) Circumference</strong>
+      <div class="row" style="margin-top:6px">
+        <input id="circum" type="number" step="0.01" placeholder="Circumference (cm)" />
+        <button id="calc" class="primary">Compute metrics</button>
+      </div>
+    </div>
+
+    <div class="sec">
       <div class="metrics" id="metrics">Not computed.</div>
-      <div class="row" style="margin-top:8px">
-        <button id="exportPNG">Export annotated PNG</button>
-      </div>
-    </section>
+    </div>
   </aside>
 
   <main>
@@ -87,149 +92,112 @@
 </div>
 
 <script>
-(() => {
-  const cv = document.getElementById('cv');
-  const ctx = cv.getContext('2d');
-  const dpr = Math.max(1, window.devicePixelRatio || 1);
-  let img = new Image();
-  let imgLoaded = false;
-  let scale = 1, offsetX = 0, offsetY = 0;
-  const status = document.getElementById('status');
+(()=>{
+  const cv=document.getElementById('cv'); const ctx=cv.getContext('2d');
+  const dpr=Math.max(1, window.devicePixelRatio||1);
+  let photo=new Image(), predImg=new Image();
+  let photoLoaded=false, predLoaded=false;
+  let scale=1, offsetX=0, offsetY=0; // image->canvas mapping in CSS px
 
-  const state = {
-    mode: 'idle', // 'center' | 'radius' | 'cav'
-    pole: { center: null, radiusPx: null },
-    cav: [],
-    pulses: [] // click feedback {x,y,t}
-  };
+  const st={ mode:'idle', pole:{center:null,Rpx:null}, cav:[], cavM:[], overlay:{opacity:0.5,scale:1,rot:0,dx:0,dy:0}, interMask:null, interSize:{W:0,H:0} };
 
-  // ---------- Sizing & DPR ----------
-  function setCanvasSize(){
-    const rect = cv.parentElement.getBoundingClientRect();
-    cv.style.width = rect.width + 'px';
-    cv.style.height = rect.height + 'px';
-    cv.width = Math.max(640, Math.floor(rect.width * dpr));
-    cv.height = Math.max(480, Math.floor(rect.height * dpr));
+  // --- sizing with DPR ---
+  function setSize(){
+    const r=cv.parentElement.getBoundingClientRect();
+    cv.style.width=r.width+'px'; cv.style.height=r.height+'px';
+    cv.width = Math.max(640, Math.floor(r.width*dpr));
+    cv.height= Math.max(480, Math.floor(r.height*dpr));
     ctx.setTransform(dpr,0,0,dpr,0,0); // work in CSS pixels
     draw();
   }
-  const ro = new ResizeObserver(setCanvasSize); ro.observe(cv.parentElement);
-  window.addEventListener('resize', setCanvasSize);
+  const ro=new ResizeObserver(setSize); ro.observe(cv.parentElement);
+  window.addEventListener('resize', setSize);
 
-  function fitImage(){
-    if(!imgLoaded) return;
-    const W = cv.getBoundingClientRect().width;
-    const H = cv.getBoundingClientRect().height;
-    const r = Math.min(W / img.naturalWidth, H / img.naturalHeight);
-    scale = r; offsetX = (W - img.naturalWidth * r)/2; offsetY = (H - img.naturalHeight * r)/2; draw();
+  function fit(){ if(!photoLoaded) return; const W=cv.getBoundingClientRect().width, H=cv.getBoundingClientRect().height; const r=Math.min(W/photo.naturalWidth, H/photo.naturalHeight); scale=r; offsetX=(W-photo.naturalWidth*r)/2; offsetY=(H-photo.naturalHeight*r)/2; draw(); }
+  const toCanvas=p=>({x:offsetX+p.x*scale,y:offsetY+p.y*scale}); const toImage=p=>({x:(p.x-offsetX)/scale,y:(p.y-offsetY)/scale});
+
+  function draw(){ ctx.clearRect(0,0,cv.width,cv.height);
+    if(photoLoaded) ctx.drawImage(photo, offsetX, offsetY, photo.naturalWidth*scale, photo.naturalHeight*scale);
+    if(predLoaded){ ctx.save(); ctx.globalAlpha=st.overlay.opacity; const cx=offsetX + (photo.naturalWidth*scale)/2; const cy=offsetY + (photo.naturalHeight*scale)/2; ctx.translate(cx+st.overlay.dx, cy+st.overlay.dy); ctx.scale(st.overlay.scale, st.overlay.scale); ctx.rotate(st.overlay.rot*Math.PI/180); ctx.drawImage(predImg, -predImg.naturalWidth/2, -predImg.naturalHeight/2); ctx.restore(); }
+    if(st.pole.center){ const c=toCanvas(st.pole.center); ctx.fillStyle='#60a5fa'; ctx.beginPath(); ctx.arc(c.x,c.y,4,0,Math.PI*2); ctx.fill(); if(st.pole.Rpx){ ctx.beginPath(); ctx.arc(c.x,c.y, st.pole.Rpx*scale, 0, Math.PI*2); ctx.lineWidth=2; ctx.strokeStyle='#60a5fa'; ctx.stroke(); } }
+    if(st.cav.length){ ctx.beginPath(); const p0=toCanvas(st.cav[0]); ctx.moveTo(p0.x,p0.y); for(let i=1;i<st.cav.length;i++){ const p=toCanvas(st.cav[i]); ctx.lineTo(p.x,p.y);} ctx.closePath(); ctx.strokeStyle='#f97316'; ctx.lineWidth=2; ctx.stroke(); }
+    if(st.cavM.length){ ctx.beginPath(); const p0=toCanvas(st.cavM[0]); ctx.moveTo(p0.x,p0.y); for(let i=1;i<st.cavM.length;i++){ const p=toCanvas(st.cavM[i]); ctx.lineTo(p.x,p.y);} ctx.closePath(); ctx.strokeStyle='#22c55e'; ctx.lineWidth=2; ctx.stroke(); }
+    if(st.interMask){ const {W,H}=st.interSize; const sx=(photo.naturalWidth*scale)/W, sy=(photo.naturalHeight*scale)/H; ctx.save(); ctx.translate(offsetX, offsetY); ctx.strokeStyle= getComputedStyle(document.documentElement).getPropertyValue('--over')||'#f5e663'; ctx.fillStyle= '#f5e663'; ctx.lineWidth=1; ctx.globalAlpha=0.9; for(let y=0;y<H;y++){ for(let x=0;x<W;x++){ const i=y*W+x; if(!st.interMask[i]) continue; const r=(x+1<W)?st.interMask[i+1]:0; const d=(y+1<H)?st.interMask[i+W]:0; if(!r){ ctx.beginPath(); ctx.moveTo(x*sx+sx, y*sy); ctx.lineTo(x*sx+sx, y*sy+sy); ctx.stroke(); } if(!d){ ctx.beginPath(); ctx.moveTo(x*sx, y*sy+sy); ctx.lineTo(x*sx+sx, y*sy+sy); ctx.stroke(); } } } ctx.globalAlpha=0.18; for(let y=0;y<H;y++){ for(let x=0;x<W;x++){ if(st.interMask[y*W+x]) ctx.fillRect(x*sx, y*sy, sx, sy); } } ctx.restore(); }
   }
 
-  const toCanvas = (p) => ({ x: offsetX + p.x * scale, y: offsetY + p.y * scale });
-  const toImage = (p) => ({ x: (p.x - offsetX) / scale, y: (p.y - offsetY) / scale });
+  async function loadFile(file){ return new Promise((res,rej)=>{ const fr=new FileReader(); fr.onerror=rej; fr.onload=()=>{ const im=new Image(); im.onload=()=>res(im); im.src=fr.result; }; fr.readAsDataURL(file); }); }
+  document.getElementById('filePhoto').addEventListener('change',async e=>{ const f=e.target.files?.[0]; if(!f) return; photo=await loadFile(f); photoLoaded=true; setSize(); fit(); });
+  document.getElementById('filePred').addEventListener('change',async e=>{ const f=e.target.files?.[0]; if(!f) return; predImg=await loadFile(f); predLoaded=true; draw(); });
+  document.getElementById('fit').addEventListener('click',fit);
+  document.getElementById('clear').addEventListener('click',()=>{ st.pole={center:null,Rpx:null}; st.cav=[]; st.cavM=[]; st.interMask=null; draw(); document.getElementById('metrics').innerText='Not computed.'; });
 
-  // ---------- UI helpers ----------
-  const btnCenter = document.getElementById('modeCenter');
-  const btnRadius = document.getElementById('modeRadius');
-  const btnCav = document.getElementById('modeCav');
-  function setMode(m){ state.mode = m; [btnCenter,btnRadius,btnCav].forEach(b=>b.classList.remove('active')); if(m==='center') btnCenter.classList.add('active'); if(m==='radius') btnRadius.classList.add('active'); if(m==='cav') btnCav.classList.add('active'); }
-  function setStatus(msg){ status.textContent = msg; }
+  // overlay controls
+  const bind=(id,key)=>{ const el=document.getElementById(id); const up=()=>{ st.overlay[key]=parseFloat(el.value); draw(); }; el.addEventListener('input',up); el.addEventListener('change',up); };
+  bind('opacity','opacity'); bind('scaleM','scale'); bind('rotateM','rot'); bind('shiftX','dx'); bind('shiftY','dy');
 
-  // ---------- Draw ----------
-  function draw(){
-    ctx.clearRect(0,0,cv.width,cv.height);
-    if(imgLoaded) ctx.drawImage(img, offsetX, offsetY, img.naturalWidth*scale, img.naturalHeight*scale);
+  // modes
+  const setMode=(m)=>{ st.mode=m; };
+  document.getElementById('modeCenter').addEventListener('click',()=>setMode('center'));
+  document.getElementById('modeRadius').addEventListener('click',()=>setMode('radius'));
+  document.getElementById('modeCav').addEventListener('click',()=>setMode('cav'));
+  document.getElementById('closeCav').addEventListener('click',()=>setMode('idle'));
+  document.getElementById('undoCav').addEventListener('click',()=>{ st.cav.pop(); draw(); });
+  document.getElementById('modeCavM').addEventListener('click',()=>setMode('cavM'));
+  document.getElementById('closeCavM').addEventListener('click',()=>setMode('idle'));
+  document.getElementById('undoCavM').addEventListener('click',()=>{ st.cavM.pop(); draw(); });
 
-    // pole circle
-    if(state.pole.center){
-      const c = toCanvas(state.pole.center);
-      ctx.fillStyle = '#60a5fa'; ctx.beginPath(); ctx.arc(c.x,c.y,4,0,Math.PI*2); ctx.fill();
-      if(state.pole.radiusPx){ ctx.beginPath(); ctx.arc(c.x,c.y,state.pole.radiusPx*scale,0,Math.PI*2); ctx.lineWidth=2; ctx.strokeStyle='#60a5fa'; ctx.stroke(); }
-    }
+  // clicks
+  cv.addEventListener('click',e=>{ const r=cv.getBoundingClientRect(); const p=toImage({x:e.clientX-r.left,y:e.clientY-r.top}); if(st.mode==='center'){ st.pole.center=p; } else if(st.mode==='radius'&&st.pole.center){ const c=toCanvas(st.pole.center); st.pole.Rpx=Math.hypot(e.clientX-r.left-c.x, e.clientY-r.top-c.y)/scale; } else if(st.mode==='cav'){ st.cav.push(p); } else if(st.mode==='cavM'){ st.cavM.push(p); } draw(); });
+  cv.addEventListener('dblclick',()=>{ if(st.mode==='cav'||st.mode==='cavM'){ st.mode='idle'; draw(); } });
 
-    // cavity polygon
-    if(state.cav.length){
-      ctx.beginPath(); const p0 = toCanvas(state.cav[0]); ctx.moveTo(p0.x,p0.y);
-      for(let i=1;i<state.cav.length;i++){ const p = toCanvas(state.cav[i]); ctx.lineTo(p.x,p.y); }
-      if(state.mode!=='cav' && state.cav.length>2) ctx.closePath();
-      ctx.lineWidth=2; ctx.strokeStyle='#f97316'; ctx.stroke();
-      for(const p of state.cav){ const c = toCanvas(p); ctx.beginPath(); ctx.arc(c.x,c.y,3.5,0,Math.PI*2); ctx.fillStyle='#f97316'; ctx.fill(); }
-    }
+  // geometry helpers
+  function polyArea(pts){ let a=0; for(let i=0,j=pts.length-1;i<pts.length;j=i++){ const p1=pts[i],p2=pts[j]; a+=(p2.x+p1.x)*(p2.y-p1.y);} return Math.abs(a)/2; }
+  function rasterize(pts,W,H){ const off=document.createElement('canvas'); off.width=W; off.height=H; const c=off.getContext('2d'); c.fillStyle='#fff'; c.beginPath(); c.moveTo(pts[0].x,pts[0].y); for(let i=1;i<pts.length;i++) c.lineTo(pts[i].x,pts[i].y); c.closePath(); c.fill(); const d=c.getImageData(0,0,W,H).data; const m=new Uint8Array(W*H); for(let i=0;i<W*H;i++) m[i]= d[i*4+3]>0?1:0; return m; }
 
-    // click pulses feedback
-    const now = performance.now();
-    state.pulses = state.pulses.filter(pl => now - pl.t < 600);
-    for(const pl of state.pulses){
-      const a = 1 - (now - pl.t)/600; const r = 6 + (now - pl.t)/12;
-      ctx.globalAlpha = Math.max(0,a); ctx.beginPath(); ctx.arc(pl.x, pl.y, r, 0, Math.PI*2); ctx.strokeStyle = '#66ffb2'; ctx.lineWidth = 2; ctx.stroke(); ctx.globalAlpha = 1;
-    }
-    if(state.pulses.length) requestAnimationFrame(draw);
-  }
+  document.getElementById('calc').addEventListener('click',()=>{
+    const circum=parseFloat(document.getElementById('circum').value);
+    if(!photoLoaded||!predLoaded) return alert('Load both images first');
+    if(!st.pole.center||!st.pole.Rpx) return alert('Set pole center and radius');
+    if(!(st.cav.length>=3&&st.cavM.length>=3)) return alert('Draw both photo and MATLAB cavities');
+    if(!circum||circum<=0) return alert('Enter circumference');
 
-  // ---------- Load image (robust) ----------
-  async function loadFile(file){
-    imgLoaded = false; setStatus('Loading image…');
-    state.pole = { center:null, radiusPx:null }; state.cav = []; draw();
-    try{
-      const bmp = await createImageBitmap(file);
-      const off = document.createElement('canvas'); off.width=bmp.width; off.height=bmp.height; off.getContext('2d').drawImage(bmp,0,0);
-      img = new Image(); await new Promise(res=>{ img.onload=res; img.src = off.toDataURL('image/png'); });
-    }catch(e){
-      const fr = new FileReader(); const dataURL = await new Promise((res,rej)=>{ fr.onerror=rej; fr.onload=()=>res(fr.result); fr.readAsDataURL(file); });
-      img = new Image(); await new Promise(res=>{ img.onload=res; img.src = dataURL; });
-    }
-    imgLoaded = true; fitImage(); setStatus('Image loaded ✓');
-  }
+    // scale
+    const perPx=2*Math.PI*st.pole.Rpx; const cmPerPx=circum/perPx;
 
-  document.getElementById('file').addEventListener('change', e=>{ const f=e.target.files?.[0]; if(!f) return; loadFile(f); });
-  document.getElementById('fit').addEventListener('click', fitImage);
-  document.getElementById('clearAll').addEventListener('click', ()=>{ state.pole={center:null,radiusPx:null}; state.cav=[]; setMode('idle'); setStatus('Cleared.'); document.getElementById('metrics').textContent='Not computed.'; draw(); });
+    // analytic areas
+    const areaPhotoPx2=polyArea(st.cav); const areaMatPx2=polyArea(st.cavM); const areaPolePx2=Math.PI*st.pole.Rpx*st.pole.Rpx;
 
-  // ---------- Interactions ----------
-  let mouse=null; cv.addEventListener('mousemove', e=>{ const r=cv.getBoundingClientRect(); mouse={x:e.clientX-r.left,y:e.clientY-r.top}; });
-  cv.addEventListener('click', e=>{
-    const r = cv.getBoundingClientRect(); const pCanvas = { x:e.clientX-r.left, y:e.clientY-r.top }; const pImg = toImage(pCanvas);
-    state.pulses.push({ x:pCanvas.x, y:pCanvas.y, t:performance.now() });
-    if(state.mode==='center'){ state.pole.center = pImg; setStatus('Center set ✓. Now click rim to set radius.'); }
-    else if(state.mode==='radius' && state.pole.center){ const c = toCanvas(state.pole.center); state.pole.radiusPx = Math.hypot(pCanvas.x - c.x, pCanvas.y - c.y) / scale; setStatus('Radius set ✓.'); }
-    else if(state.mode==='cav'){ state.cav.push(pImg); setStatus(`Cavity points: ${state.cav.length}`); }
+    // overlap via rasterization on image pixels
+    const W=Math.floor(photo.naturalWidth), H=Math.floor(photo.naturalHeight);
+    const maskP=rasterize(st.cav,W,H), maskM=rasterize(st.cavM,W,H);
+    const inter=new Uint8Array(W*H); let interCount=0,nP=0,nM=0; for(let i=0;i<W*H;i++){ const a=maskP[i], b=maskM[i]; if(a) nP++; if(b) nM++; if(a&&b){ inter[i]=1; interCount++; } }
+    st.interMask=inter; st.interSize={W,H};
+
+    const union=nP+nM-interCount; const IoU=union>0?interCount/union:0; const Dice=(nP+nM)>0?(2*interCount/(nP+nM)):0;
+
+    // convert
+    const cm2 = (px2)=>px2*cmPerPx*cmPerPx; const areaPhoto=cm2(areaPhotoPx2), areaMat=cm2(areaMatPx2), areaPole=cm2(areaPolePx2), overlapCM2=cm2(interCount);
+    const pct = (a)=>a/areaPole*100;
+
+    document.getElementById('metrics').innerText=
+`Scale
+- cm/px = ${cmPerPx.toFixed(4)}
+
+Areas
+- Photo cavity: ${areaPhoto.toFixed(2)} cm² (${pct(areaPhoto).toFixed(2)}% of circle)
+- MATLAB cavity: ${areaMat.toFixed(2)} cm² (${pct(areaMat).toFixed(2)}% of circle)
+- Overlap (intersection): ${overlapCM2.toFixed(2)} cm² (${pct(overlapCM2).toFixed(2)}% of circle)
+
+Agreement
+- IoU: ${IoU.toFixed(3)}
+- Dice: ${Dice.toFixed(3)}
+
+Tip: the yellow outline/fill shows the intersection region.`;
+
     draw();
   });
-  cv.addEventListener('dblclick', ()=>{ if(state.mode==='cav'){ setMode('idle'); setStatus('Cavity closed.'); draw(); } });
-  window.addEventListener('keydown', (e)=>{ if(e.key==='Escape'){ setMode('idle'); setStatus('Drawing cancelled.'); draw(); } });
 
-  document.getElementById('modeCenter').addEventListener('click', ()=>{ setMode('center'); setStatus('Click the pole center.'); });
-  document.getElementById('modeRadius').addEventListener('click', ()=>{ setMode('radius'); setStatus('Click a point on the rim.'); });
-  document.getElementById('resetPole').addEventListener('click', ()=>{ state.pole={center:null,radiusPx:null}; setStatus('Pole circle reset.'); draw(); });
-  document.getElementById('modeCav').addEventListener('click', ()=>{ setMode('cav'); setStatus('Click to add cavity points. Double‑click to close.'); });
-  document.getElementById('closeCav').addEventListener('click', ()=>{ setMode('idle'); setStatus('Cavity closed.'); draw(); });
-  document.getElementById('undoCav').addEventListener('click', ()=>{ state.cav.pop(); setStatus(`Cavity points: ${state.cav.length}`); draw(); });
-
-  // ---------- Compute ----------
-  function polyArea(px){ let a=0; for(let i=0,j=px.length-1;i<px.length;j=i++){ const p1=px[i],p2=px[j]; a+=(p2.x+p1.x)*(p2.y-p1.y);} return Math.abs(a)/2; }
-  function fmt(n){ return Number(n).toLocaleString(undefined,{ maximumFractionDigits:3 }); }
-  document.getElementById('calc').addEventListener('click', ()=>{
-    if(!imgLoaded) return alert('Load an image first');
-    if(!state.pole.center || !state.pole.radiusPx) return alert('Set pole center and radius');
-    if(!(state.cav.length>=3)) return alert('Draw the cavity polygon (≥3 points)');
-    const circum = parseFloat(document.getElementById('circum').value); if(!circum||circum<=0) return alert('Enter valid circumference (cm)');
-
-    const Rpx = state.pole.radiusPx; const perPx = 2*Math.PI*Rpx; const cmPerPx = circum / perPx;
-    const areaCavPx2 = polyArea(state.cav); const areaPolePx2 = Math.PI * Rpx * Rpx;
-    const areaCav = areaCavPx2 * cmPerPx * cmPerPx; const areaPole = areaPolePx2 * cmPerPx * cmPerPx; const ratio = areaCav/areaPole*100;
-
-    document.getElementById('metrics').textContent = `Pixels\n- R: ${fmt(Rpx)} px\n- Perimeter: ${fmt(perPx)} px\n- Cavity area: ${fmt(areaCavPx2)} px²\n\nScale\n- Circumference: ${fmt(circum)} cm\n- Scale: ${fmt(cmPerPx)} cm/px\n\nResults\n- Cavity area: ${fmt(areaCav)} cm²\n- Section area: ${fmt(areaPole)} cm²\n- Ratio: ${fmt(ratio)} %`;
-    setStatus('Computed ✓');
-  });
-
-  // ---------- Export ----------
-  document.getElementById('exportPNG').addEventListener('click', ()=>{
-    if(!imgLoaded) return; const out = document.createElement('canvas'); out.width = img.naturalWidth; out.height = img.naturalHeight; const c = out.getContext('2d'); c.drawImage(img,0,0);
-    if(state.pole.center && state.pole.radiusPx){ const cc = state.pole.center; const rr = state.pole.radiusPx; c.beginPath(); c.arc(cc.x,cc.y,rr,0,Math.PI*2); c.lineWidth=6; c.strokeStyle= '#60a5fa'; c.stroke(); }
-    if(state.cav.length>=3){ c.beginPath(); c.moveTo(state.cav[0].x,state.cav[0].y); for(let i=1;i<state.cav.length;i++) c.lineTo(state.cav[i].x,state.cav[i].y); c.closePath(); c.lineWidth=6; c.strokeStyle='#f97316'; c.stroke(); c.globalAlpha=.25; c.fillStyle='#f97316'; c.fill(); c.globalAlpha=1; }
-    const url = out.toDataURL('image/png'); const a=document.createElement('a'); a.href=url; a.download='pole_cavity_annotated.png'; a.click();
-  });
-
-  setCanvasSize();
+  setSize();
 })();
 </script>
 </body>
